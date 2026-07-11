@@ -21,7 +21,7 @@ export default function StudentsManager() {
       return;
     }
 
-    registerUser(formData.username, formData.password, 'student', formData.name);
+    registerUser(formData.name, formData.username, formData.password, 'student');
     setFormData({ name: '', username: '', password: '' });
   };
 
