@@ -186,7 +186,7 @@ app.post('/api/send-report', async (req, res) => {
 });
 
 // Catch-all route to serve React app for any unknown paths (React Router support)
-app.get('*', (req, res) => {
+app.use((req, res) => {
   res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
 
