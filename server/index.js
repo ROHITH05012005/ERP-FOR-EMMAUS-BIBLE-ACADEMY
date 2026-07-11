@@ -14,137 +14,141 @@ const path = require('path');
 app.use(express.static(path.join(__dirname, '../dist')));
 
 // --- USERS API ---
-app.get('/api/users', (req, res) => {
-  db.all('SELECT * FROM users', (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
+app.get('/api/users', async (req, res) => {
+  try {
+    const { rows } = await db.query('SELECT * FROM users');
     res.json(rows);
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.post('/api/users', (req, res) => {
+app.post('/api/users', async (req, res) => {
   const { id, name, username, password, role } = req.body;
-  db.run('INSERT INTO users (id, name, username, password, role) VALUES (?, ?, ?, ?, ?)', 
-    [id, name, username, password, role], 
-    function(err) {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json({ success: true });
-    }
-  );
-});
-
-app.put('/api/users/:id', (req, res) => {
-  const { name, username, password } = req.body;
-  db.run('UPDATE users SET name = ?, username = ?, password = ? WHERE id = ?',
-    [name, username, password, req.params.id],
-    function(err) {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json({ success: true });
-    }
-  );
-});
-
-app.delete('/api/users/:id', (req, res) => {
-  db.run('DELETE FROM users WHERE id = ?', [req.params.id], function(err) {
-    if (err) return res.status(500).json({ error: err.message });
+  try {
+    await db.query('INSERT INTO users (id, name, username, password, role) VALUES ($1, $2, $3, $4, $5)', 
+      [id, name, username, password, role]);
     res.json({ success: true });
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/users/:id', async (req, res) => {
+  const { name, username, password } = req.body;
+  try {
+    await db.query('UPDATE users SET name = $1, username = $2, password = $3 WHERE id = $4',
+      [name, username, password, req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/users/:id', async (req, res) => {
+  try {
+    await db.query('DELETE FROM users WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // --- ATTENDANCE API ---
-app.get('/api/attendance', (req, res) => {
-  db.all('SELECT * FROM attendance', (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
-  });
+app.get('/api/attendance', async (req, res) => {
+  try {
+    const { rows } = await db.query('SELECT id, "studentId", date, status FROM attendance');
+    // Map to camelCase for frontend
+    const mapped = rows.map(r => ({ id: r.id, studentId: r.studentId || r.studentid, date: r.date, status: r.status }));
+    res.json(mapped);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.post('/api/attendance', (req, res) => {
+app.post('/api/attendance', async (req, res) => {
   const { studentId, date, status } = req.body;
-  
-  db.get('SELECT id FROM attendance WHERE studentId = ? AND date = ?', [studentId, date], (err, row) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (row) {
-      db.run('UPDATE attendance SET status = ? WHERE id = ?', [status, row.id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true });
-      });
+  try {
+    const { rows } = await db.query('SELECT id FROM attendance WHERE "studentId" = $1 AND date = $2', [studentId, date]);
+    if (rows.length > 0) {
+      await db.query('UPDATE attendance SET status = $1 WHERE id = $2', [status, rows[0].id]);
     } else {
       const id = Date.now().toString() + Math.random().toString();
-      db.run('INSERT INTO attendance (id, studentId, date, status) VALUES (?, ?, ?, ?)', 
-        [id, studentId, date, status], 
-        function(err) {
-          if (err) return res.status(500).json({ error: err.message });
-          res.json({ success: true });
-        }
-      );
+      await db.query('INSERT INTO attendance (id, "studentId", date, status) VALUES ($1, $2, $3, $4)', 
+        [id, studentId, date, status]);
     }
-  });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // --- ASSIGNMENTS API ---
-app.get('/api/assignments', (req, res) => {
-  db.all('SELECT * FROM assignments', (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
-  });
+app.get('/api/assignments', async (req, res) => {
+  try {
+    const { rows } = await db.query('SELECT id, "studentId", "assignmentName", score FROM assignments');
+    const mapped = rows.map(r => ({ id: r.id, studentId: r.studentId || r.studentid, assignmentName: r.assignmentName || r.assignmentname, score: r.score }));
+    res.json(mapped);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.post('/api/assignments/bulk', (req, res) => {
+app.post('/api/assignments/bulk', async (req, res) => {
   const newAssignments = req.body;
   const time = Date.now();
+  const client = await db.pool.connect();
 
-  db.serialize(() => {
-    db.run('BEGIN TRANSACTION');
-    let errorOccurred = false;
-
-    newAssignments.forEach((assign, idx) => {
-      db.get('SELECT id FROM assignments WHERE studentId = ? AND LOWER(assignmentName) = LOWER(?)', 
-        [assign.studentId, assign.assignmentName], 
-        (err, row) => {
-          if (err) errorOccurred = true;
-          if (row) {
-            db.run('UPDATE assignments SET score = ? WHERE id = ?', [assign.score, row.id]);
-          } else {
-            const id = (time + idx).toString();
-            db.run('INSERT INTO assignments (id, studentId, assignmentName, score) VALUES (?, ?, ?, ?)', 
-              [id, assign.studentId, assign.assignmentName, assign.score]);
-          }
-      });
-    });
-
-    db.run('COMMIT', (err) => {
-      if (err || errorOccurred) return res.status(500).json({ error: 'Bulk insert failed' });
-      res.json({ success: true });
-    });
-  });
+  try {
+    await client.query('BEGIN');
+    for (let idx = 0; idx < newAssignments.length; idx++) {
+      const assign = newAssignments[idx];
+      const { rows } = await client.query('SELECT id FROM assignments WHERE "studentId" = $1 AND LOWER("assignmentName") = LOWER($2)', 
+        [assign.studentId, assign.assignmentName]);
+      
+      if (rows.length > 0) {
+        await client.query('UPDATE assignments SET score = $1 WHERE id = $2', [assign.score, rows[0].id]);
+      } else {
+        const id = (time + idx).toString();
+        await client.query('INSERT INTO assignments (id, "studentId", "assignmentName", score) VALUES ($1, $2, $3, $4)', 
+          [id, assign.studentId, assign.assignmentName, assign.score]);
+      }
+    }
+    await client.query('COMMIT');
+    res.json({ success: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: 'Bulk insert failed' });
+  } finally {
+    client.release();
+  }
 });
 
 // --- TOPICS API ---
-app.get('/api/topics', (req, res) => {
-  db.all('SELECT * FROM topics', (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
+app.get('/api/topics', async (req, res) => {
+  try {
+    const { rows } = await db.query('SELECT date, "topicName" FROM topics');
     const topicsObj = {};
-    rows.forEach(r => topicsObj[r.date] = r.topicName);
+    rows.forEach(r => topicsObj[r.date] = r.topicName || r.topicname);
     res.json(topicsObj);
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.post('/api/topics', (req, res) => {
+app.post('/api/topics', async (req, res) => {
   const { date, topicName } = req.body;
-  db.get('SELECT date FROM topics WHERE date = ?', [date], (err, row) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (row) {
-      db.run('UPDATE topics SET topicName = ? WHERE date = ?', [topicName, date], (err) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true });
-      });
+  try {
+    const { rows } = await db.query('SELECT date FROM topics WHERE date = $1', [date]);
+    if (rows.length > 0) {
+      await db.query('UPDATE topics SET "topicName" = $1 WHERE date = $2', [topicName, date]);
     } else {
-      db.run('INSERT INTO topics (date, topicName) VALUES (?, ?)', [date, topicName], (err) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true });
-      });
+      await db.query('INSERT INTO topics (date, "topicName") VALUES ($1, $2)', [date, topicName]);
     }
-  });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // --- EMAIL API ---
@@ -167,11 +171,11 @@ app.post('/api/send-report', async (req, res) => {
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: recipientEmail,
-      subject: `Weekly Class Report - ${selectedWeek}`,
-      text: `Please find the weekly class report for ${selectedWeek} attached.\n\nTopic Covered: ${currentTopic}\n\nClass Overview:\n- Total Students: ${totalStudents}\n- Present: ${presentSelectedWeek}\n- Absent: ${totalStudents - presentSelectedWeek}\n\nAutomated by Emmaus Bible Academy System.`,
+      subject: \`Weekly Class Report - \${selectedWeek}\`,
+      text: \`Please find the weekly class report for \${selectedWeek} attached.\n\nTopic Covered: \${currentTopic}\n\nClass Overview:\n- Total Students: \${totalStudents}\n- Present: \${presentSelectedWeek}\n- Absent: \${totalStudents - presentSelectedWeek}\n\nAutomated by Emmaus Bible Academy System.\`,
       attachments: [
         {
-          filename: `student_report_${selectedWeek}.csv`,
+          filename: \`student_report_\${selectedWeek}.csv\`,
           content: csvContent
         }
       ]
@@ -192,5 +196,5 @@ app.use((req, res) => {
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(\`Server running on port \${PORT}\`);
 });
