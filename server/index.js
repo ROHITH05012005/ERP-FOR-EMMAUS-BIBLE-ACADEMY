@@ -171,11 +171,11 @@ app.post('/api/send-report', async (req, res) => {
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: recipientEmail,
-      subject: \`Weekly Class Report - \${selectedWeek}\`,
-      text: \`Please find the weekly class report for \${selectedWeek} attached.\n\nTopic Covered: \${currentTopic}\n\nClass Overview:\n- Total Students: \${totalStudents}\n- Present: \${presentSelectedWeek}\n- Absent: \${totalStudents - presentSelectedWeek}\n\nAutomated by Emmaus Bible Academy System.\`,
+      subject: `Weekly Class Report - ${selectedWeek}`,
+      text: `Please find the weekly class report for ${selectedWeek} attached.\n\nTopic Covered: ${currentTopic}\n\nClass Overview:\n- Total Students: ${totalStudents}\n- Present: ${presentSelectedWeek}\n- Absent: ${totalStudents - presentSelectedWeek}\n\nAutomated by Emmaus Bible Academy System.`,
       attachments: [
         {
-          filename: \`student_report_\${selectedWeek}.csv\`,
+          filename: `student_report_${selectedWeek}.csv`,
           content: csvContent
         }
       ]
