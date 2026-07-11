@@ -11,7 +11,7 @@ export default function Login() {
   const [formData, setFormData] = useState({ username: '', password: '', name: '' });
   const [error, setError] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -21,11 +21,14 @@ export default function Login() {
       }
       // Force first user to be admin, otherwise they can't access admin portal
       const role = users.length === 0 ? 'admin' : 'student'; 
-      registerUser(formData.username, formData.password, role, formData.name);
-      
-      // Auto login after register
-      if (login(formData.username, formData.password)) {
-        navigate(`/${role}`);
+      try {
+        const newUser = await registerUser(formData.name, formData.username, formData.password, role);
+        
+        // Auto login after register
+        localStorage.setItem('app_currentUser', JSON.stringify(newUser));
+        window.location.href = `/${role}`;
+      } catch (err) {
+        setError(err.message);
       }
     } else {
       const success = login(formData.username, formData.password);
