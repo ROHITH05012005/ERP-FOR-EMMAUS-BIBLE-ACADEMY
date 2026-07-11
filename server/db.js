@@ -29,7 +29,7 @@ const initDB = async () => {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS attendance (
         id TEXT PRIMARY KEY,
-        studentId TEXT,
+        "studentId" TEXT,
         date TEXT,
         status TEXT,
         FOREIGN KEY("studentId") REFERENCES users(id) ON DELETE CASCADE
@@ -39,8 +39,8 @@ const initDB = async () => {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS assignments (
         id TEXT PRIMARY KEY,
-        studentId TEXT,
-        assignmentName TEXT,
+        "studentId" TEXT,
+        "assignmentName" TEXT,
         score INTEGER,
         FOREIGN KEY("studentId") REFERENCES users(id) ON DELETE CASCADE
       )
@@ -49,7 +49,7 @@ const initDB = async () => {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS topics (
         date TEXT PRIMARY KEY,
-        topicName TEXT
+        "topicName" TEXT
       )
     `);
     
