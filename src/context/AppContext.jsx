@@ -12,6 +12,18 @@ export function AppProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Restore session IMMEDIATELY on mount — before any API calls
+  useEffect(() => {
+    const savedUser = localStorage.getItem('app_currentUser');
+    if (savedUser) {
+      try {
+        setCurrentUser(JSON.parse(savedUser));
+      } catch {
+        localStorage.removeItem('app_currentUser');
+      }
+    }
+  }, []);
+
   // Load all initial data from backend
   useEffect(() => {
     const fetchData = async () => {
@@ -27,10 +39,6 @@ export function AppProvider({ children }) {
         if (attRes.ok) setAttendance(await attRes.json());
         if (assignRes.ok) setAssignments(await assignRes.json());
         if (topicsRes.ok) setTopics(await topicsRes.json());
-        
-        // Restore local login session
-        const savedUser = localStorage.getItem('app_currentUser');
-        if (savedUser) setCurrentUser(JSON.parse(savedUser));
         
       } catch (err) {
         console.error("Failed to load initial data from backend", err);
