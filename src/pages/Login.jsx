@@ -1,18 +1,30 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import { LogIn, UserPlus } from 'lucide-react';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { users, login, registerUser } = useAppContext();
+  const { login, registerUser } = useAppContext();
   
-  // Don't use users.length===0 here because users loads async and may be empty initially
-  // Always default to login form; register form shown only if no admin exists yet (checked server-side)
   const [isRegistering, setIsRegistering] = useState(false);
   const [formData, setFormData] = useState({ username: '', password: '', name: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [dbUserCount, setDbUserCount] = useState(null); // null = still checking
+
+  // Check DB directly to see if any users exist
+  useEffect(() => {
+    fetch('/api/users')
+      .then(res => res.json())
+      .then(users => {
+        const count = Array.isArray(users) ? users.length : 0;
+        setDbUserCount(count);
+        // If no users in DB at all, auto-show register form to create first admin
+        if (count === 0) setIsRegistering(true);
+      })
+      .catch(() => setDbUserCount(0));
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -25,7 +37,7 @@ export default function Login() {
         return setError('All fields are required');
       }
       // Force first user to be admin, otherwise they can't access admin portal
-      const role = users.length === 0 ? 'admin' : 'student'; 
+      const role = dbUserCount === 0 ? 'admin' : 'student'; 
       try {
         const newUser = await registerUser(formData.name, formData.username, formData.password, role);
         
@@ -50,7 +62,7 @@ export default function Login() {
     <div className="login-container">
       <div className="card login-box">
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <h2>{isRegistering ? (users.length === 0 ? 'Create Admin Account' : 'Register') : 'Welcome Back'}</h2>
+          <h2>{isRegistering ? (dbUserCount === 0 ? 'Create Admin Account' : 'Register') : 'Welcome Back'}</h2>
           <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>
             {isRegistering ? 'Setup your account to continue' : 'Sign in to access your portal'}
           </p>
