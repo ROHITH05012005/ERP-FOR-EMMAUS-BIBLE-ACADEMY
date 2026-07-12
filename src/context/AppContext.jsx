@@ -85,13 +85,21 @@ export function AppProvider({ children }) {
     setAssignments(assignments.filter(a => a.studentId !== userId));
   };
 
-  const login = (username, password) => {
-    const user = users.find(u => u.username === username && u.password === password);
-    if (user) {
-      setCurrentUser(user);
-      return true;
+  const login = async (username, password) => {
+    // Check directly against DB to avoid race condition where users state is empty
+    try {
+      const res = await fetch('/api/users');
+      const allUsers = await res.json();
+      const user = allUsers.find(u => u.username === username && u.password === password);
+      if (user) {
+        setCurrentUser(user);
+        return user;
+      }
+      return null;
+    } catch (err) {
+      console.error('Login error:', err);
+      return null;
     }
-    return false;
   };
 
   const logout = () => {

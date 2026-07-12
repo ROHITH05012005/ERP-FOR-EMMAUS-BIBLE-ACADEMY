@@ -7,16 +7,21 @@ export default function Login() {
   const navigate = useNavigate();
   const { users, login, registerUser } = useAppContext();
   
-  const [isRegistering, setIsRegistering] = useState(users.length === 0);
+  // Don't use users.length===0 here because users loads async and may be empty initially
+  // Always default to login form; register form shown only if no admin exists yet (checked server-side)
+  const [isRegistering, setIsRegistering] = useState(false);
   const [formData, setFormData] = useState({ username: '', password: '', name: '' });
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
 
     if (isRegistering) {
       if (!formData.username || !formData.password || !formData.name) {
+        setLoading(false);
         return setError('All fields are required');
       }
       // Force first user to be admin, otherwise they can't access admin portal
@@ -31,14 +36,14 @@ export default function Login() {
         setError(err.message);
       }
     } else {
-      const success = login(formData.username, formData.password);
-      if (success) {
-        const user = users.find(u => u.username === formData.username);
+      const user = await login(formData.username, formData.password);
+      if (user) {
         navigate(`/${user.role}`);
       } else {
         setError('Invalid username or password');
       }
     }
+    setLoading(false);
   };
 
   return (
@@ -93,8 +98,8 @@ export default function Login() {
             />
           </div>
 
-          <button type="submit" className="btn" style={{ width: '100%', marginTop: '16px', padding: '12px' }}>
-            {isRegistering ? <><UserPlus size={18} /> Create Account</> : <><LogIn size={18} /> Sign In</>}
+          <button type="submit" className="btn" style={{ width: '100%', marginTop: '16px', padding: '12px' }} disabled={loading}>
+            {loading ? 'Please wait...' : isRegistering ? <><UserPlus size={18} /> Create Account</> : <><LogIn size={18} /> Sign In</>}
           </button>
         </form>
 
